@@ -10,7 +10,7 @@ const AuthProvider = ({children}) => {
     const [userData, setuserData] = useState()
 
     useEffect(() => {
-      console.log(user);     
+      // console.log(user);     
       user&&CreateNewUser();      // call the createtnewuser func only when user i.e. userdata is availabel
     }, [user])
 
