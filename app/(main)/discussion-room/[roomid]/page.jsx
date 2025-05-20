@@ -6,6 +6,7 @@ import { CoachingExpert } from '@/services/Options'
 import { api } from '@/convex/_generated/api'
 import Image from 'next/image'
 import { UserButton } from '@stackframe/stack'
+import { Button } from '@/components/ui/button'
 
 const page = () => {
   const { roomid } = useParams() //this how we extract the id 
@@ -31,7 +32,7 @@ const page = () => {
 
 
         <div className='lg:col-span-2'>
-          <div className=' h-[60vh] border rounded-4xl bg-secondar flex flex-col items-center justify-center relative'>
+          <div className=' h-[60vh] border rounded-4xl bg-secondary flex flex-col items-center justify-center relative'>
             {expert?.avatar && (
               <Image
                 src={expert.avatar}
@@ -50,7 +51,7 @@ const page = () => {
 
           </div>
 
-          <div>
+          <div className='mt-5 flex justify-center items-center'>
               <Button>Connect</Button>
           </div>
 
