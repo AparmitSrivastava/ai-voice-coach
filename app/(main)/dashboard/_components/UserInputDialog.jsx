@@ -23,7 +23,7 @@ const UserInputDialog = ({ children, coachingOption }) => {
     const [topic, settopic] = useState()
     const createDiscussionRoom = useMutation(api.DiscussionRoom.CreateNewRoom)
     const [loading, setloading] = useState(false)
-    const [openDialog, setopenDialog] = useState(false) // for closing the dialog after next button is clicked
+    const [showDialog, setshowDialog] = useState(false) // for closing the dialog after next button is clicked
     
     const OnClickNext=async()=>{
         setloading(true)
@@ -34,13 +34,13 @@ const UserInputDialog = ({ children, coachingOption }) => {
         })
         console.log(result)
         setloading(false)
-        setopenDialog(false)
+        setshowDialog(false)
     }
 
 
 
     return (
-        <Dialog open={openDialog} onOpenChange={setopenDialog} >
+        <Dialog open={showDialog} onOpenChange={setshowDialog} >
             <DialogTrigger>{children}</DialogTrigger>
             <DialogContent>
                 <DialogHeader>
