@@ -69,7 +69,15 @@ const UserInputDialog = ({ children, coachingOption }) => {
                             </div>
 
 
-                            
+                            <div className='flex gap-5 justify-end mt-5'>
+                                <DialogClose asChild><Button variant={'ghost'}>Cancel</Button></DialogClose>
+                                <Button disabled={(!topic || !selectedExpert || loading)} onClick={OnClickNext}>
+                                    {/*OnClickNext()- This immediately calls OnClickNext() when the component renders, not when the button is clicked. either use only 1.OnClickNext or ()=>onclicknext() but the 2 just creates a new funct but helpful when we want to pass args*/}
+                                {loading&&<LoaderCircle className='animate-spin'/>}
+                                Next</Button>
+                                {/* what we did here is that - we have kept 2 things inside this button, when loading is true animation will happen and next text willnot be available and when no loading then next is seen */}
+                                
+                            </div>
 
                         </div>
                     </DialogDescription>
