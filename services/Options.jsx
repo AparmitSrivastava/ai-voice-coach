@@ -29,10 +29,10 @@ export const CoachingExpert = [
     },
     {
         name:"Sallie",
-        avatar:"/t1.jpg"
+        avatar:"/t1.jpeg"
     },
     {
         name:"Mathew",
-        avatar:"/t1.jpg"
+        avatar:"/t1.jpeg"
     },
 ]
