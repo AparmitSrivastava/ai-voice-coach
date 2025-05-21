@@ -1,79 +1,92 @@
-"use client"
-import React, { useState, useEffect, useRef } from 'react'
-import { useParams } from 'next/navigation'
-import { useQuery } from 'convex/react'
-import { CoachingExpert } from '@/services/Options'
-import { api } from '@/convex/_generated/api'
-import Image from 'next/image'
-import { UserButton } from '@stackframe/stack'
-import { Button } from '@/components/ui/button'
-// import RecordRTC from 'recordrtc'
-const RecordRTC = dynamic(()=>import("recordrtc"), {ssr:false})
+  "use client"
+  import React, { useState, useEffect, useRef } from 'react'
+  import { useParams } from 'next/navigation'
+  import { useQuery } from 'convex/react'
+  import { CoachingExpert } from '@/services/Options'
+  import { api } from '@/convex/_generated/api'
+  import Image from 'next/image'
+  import { UserButton } from '@stackframe/stack'
+  import { Button } from '@/components/ui/button'
+
+
+
+  let RecordRTCConstructor = null; // this will hold the real constructor
 
 const page = () => {
-  const { roomid } = useParams() //this how we extract the id 
-  console.log(roomid);
-  const DiscussionRoomData = useQuery(api.DiscussionRoom.GetDiscussionRoom, { id: roomid })
-  const [expert, setexpert] = useState()
-  const [enableMic, setenableMic] = useState(false)
-  const recorder = useRef()
-  let silenceTimeout
+  const { roomid } = useParams();
+  const DiscussionRoomData = useQuery(api.DiscussionRoom.GetDiscussionRoom, { id: roomid });
+  const [expert, setexpert] = useState();
+  const [enableMic, setenableMic] = useState(false);
+  const recorder = useRef();
+  let silenceTimeout;
 
-
+  // 👇 load RecordRTC dynamically ONCE on client
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("recordrtc").then((mod) => {
+        RecordRTCConstructor = mod.default;
+      });
+    }
+  }, []);
 
   useEffect(() => {
     if (DiscussionRoomData) {
-      const Expert = CoachingExpert.find(item => item.name == DiscussionRoomData.expertName)
-      console.log(Expert);
-      setexpert(Expert)
+      const Expert = CoachingExpert.find(item => item.name == DiscussionRoomData.expertName);
+      setexpert(Expert);
     }
-  }, [DiscussionRoomData]) // if we dont use useeffect then error will come saying that expert is undef coz it takes time to call the data from diff file so we have to do this
-
+  }, [DiscussionRoomData]);
 
   const ConnectToServer = () => {
-    // CODE TO GET MICROPHONE ACCESS
-    setenableMic(true)
+    setenableMic(true);
+
     if (typeof window !== "undefined" && typeof navigator !== "undefined") {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then((stream) => {
-          recorder.current = new RecordRTC(stream, {
+          if (!RecordRTCConstructor) {
+            console.error("RecordRTC not loaded yet.");
+            return;
+          }
+
+          recorder.current = new RecordRTCConstructor(stream, {
             type: 'audio',
             mimeType: 'audio/webm;codecs=pcm',
-            recorderType: RecordRTC.StereoAudioRecorder,
+            recorderType: RecordRTCConstructor.StereoAudioRecorder,
             timeSlice: 250,
             desiredSampRate: 16000,
             numberOfAudioChannels: 1,
             bufferSize: 4096,
             audioBitsPerSecond: 128000,
             ondataavailable: async (blob) => {
-              // if (!realtimeTranscriber.current) return;
-              // Reset the silence detection timer on audio input
               clearTimeout(silenceTimeout);
-
               const buffer = await blob.arrayBuffer();
-
-              //console.log(buffer)
-
-              // Restart the silence detection timer
               silenceTimeout = setTimeout(() => {
                 console.log('User stopped talking');
-                // Handle user stopped talking (e.g., send final transcript, stop recording, etc.)
               }, 2000);
             },
           });
+
           recorder.current.startRecording();
         })
         .catch((err) => console.error(err));
     }
-  }
+  };
 
-
-  const disconenct = (e)=>{
+  const disconnect = (e) => {
     e.preventDefault();
-    recorder.current.pauseRecording()
-    recorder.current=null;
-    setenableMic(false)
-  }
+    recorder.current?.pauseRecording();
+    recorder.current = null;
+    setenableMic(false);
+  };
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -134,3 +147,11 @@ export default page
 
 // read about discussion-room folder , [roomid] in the notes.md line 120
 // http://localhost:3000/discussion-room/1 or any other http://localhost:3000/discussion-room/1463746384 will redirect to the page.jsx
+
+
+
+
+
+
+
+
