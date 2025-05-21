@@ -7,6 +7,8 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { UserButton } from "@stackframe/stack";
 import { Button } from "@/components/ui/button";
+import { getToken } from "@/services/GlobalServices";
+import { RealtimeTranscriber } from "assemblyai";
 
 const page = () => {
   const { roomid } = useParams();
@@ -16,7 +18,7 @@ const page = () => {
   const recorder = useRef();
   const recordRTCRef = useRef(null);
   let silenceTimeout;
-  const RealTimeTranscriber = useRef(null)
+  const realtimeTranscriber = useRef(null)
 
 
 
@@ -39,17 +41,21 @@ const page = () => {
 
 
 
-  const ConnectToServer = () => {
+  const ConnectToServer = async() => {
     setenableMic(true);
 
     // init assembly ai
-    RealTimeTranscriber.current=new RealTimeTranscriber({
-      token:'',     //we need to create a token each time and this token is created on the server side so making a new folder api , then inside it folder - getToken in the app directory
+    realtimeTranscriber.current=new RealtimeTranscriber({
+      token:await getToken(),     //we need to create a token each time and this token is created on the server side so making a new folder api , then inside it folder - getToken in the app directory
       sample:16_000
     })
 
+    // making the socket part
+    realtimeTranscriber.current.on('transcript' , async(transcript)=>{
+      console.log(transcript);
+    })
 
-
+    await realtimeTranscriber.current.connect() //connect with the assemblyAi
 
     // CODE TO GET MICROPHONE ACCESS
     if (typeof window !== "undefined" && typeof navigator !== "undefined") {
@@ -70,12 +76,14 @@ const page = () => {
             bufferSize: 4096,
             audioBitsPerSecond: 128000,
             ondataavailable: async (blob) => {
-              // if (!realtimeTranscriber.current) return;
+              if (!realtimeTranscriber.current) return;
               // Reset the silence detection timer on audio input
               clearTimeout(silenceTimeout);
 
               const buffer = await blob.arrayBuffer();
               console.log(buffer)
+
+              realtimeTranscriber.current.sendAudio(buffer), //sending the encoded audio to the socket part
 
               // Restart the silence detection timer
               silenceTimeout = setTimeout(() => {
@@ -91,12 +99,16 @@ const page = () => {
     }
   };
 
-  const disconnect = (e) => {
+  const disconnect = async(e) => {
     e.preventDefault();
+    await realtimeTranscriber.current.close()
     recorder.current?.pauseRecording();
     recorder.current = null;
     setenableMic(false);
   };
+
+
+
 
 
 
