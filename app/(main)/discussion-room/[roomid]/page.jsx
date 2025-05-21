@@ -16,6 +16,7 @@ const page = () => {
   const recorder = useRef();
   const recordRTCRef = useRef(null);
   let silenceTimeout;
+  const RealTimeTranscriber = useRef(null)
 
 
 
@@ -41,6 +42,16 @@ const page = () => {
   const ConnectToServer = () => {
     setenableMic(true);
 
+    // init assembly ai
+    RealTimeTranscriber.current=new RealTimeTranscriber({
+      token:'',     //we need to create a token each time and this token is created on the server side so making a new folder api , then inside it folder - getToken in the app directory
+      sample:16_000
+    })
+
+
+
+
+    // CODE TO GET MICROPHONE ACCESS
     if (typeof window !== "undefined" && typeof navigator !== "undefined") {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then((stream) => {
@@ -59,10 +70,17 @@ const page = () => {
             bufferSize: 4096,
             audioBitsPerSecond: 128000,
             ondataavailable: async (blob) => {
+              // if (!realtimeTranscriber.current) return;
+              // Reset the silence detection timer on audio input
               clearTimeout(silenceTimeout);
+
               const buffer = await blob.arrayBuffer();
+              console.log(buffer)
+
+              // Restart the silence detection timer
               silenceTimeout = setTimeout(() => {
                 console.log("User stopped talking");
+                // Handle user stopped talking (e.g., send final transcript, stop recording, etc.)
               }, 2000);
             },
           });
