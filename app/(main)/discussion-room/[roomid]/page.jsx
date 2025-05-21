@@ -8,7 +8,7 @@ import Image from 'next/image'
 import { UserButton } from '@stackframe/stack'
 import { Button } from '@/components/ui/button'
 // import RecordRTC from 'recordrtc'
-
+const RecordRTC = dynamic(()=>import("recordrtc"), {ssr:false})
 
 const page = () => {
   const { roomid } = useParams() //this how we extract the id 
