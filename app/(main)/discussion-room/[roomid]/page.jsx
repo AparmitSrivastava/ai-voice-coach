@@ -10,7 +10,7 @@
 
 
 
-  let RecordRTCConstructor = null; // this will hold the real constructor
+  let RecordRTCConstructor = useRef(null); // this will hold the real constructor
 
 const page = () => {
   const { roomid } = useParams();
