@@ -99,13 +99,22 @@ const page = () => {
     }
   };
 
-  const disconnect = async(e) => {
-    e.preventDefault();
-    await realtimeTranscriber.current.close()
-    recorder.current?.pauseRecording();
-    recorder.current = null;
-    setenableMic(false);
-  };
+  // const disconnect = async(e) => {
+  //   e.preventDefault();
+  //   await realtimeTranscriber.current.close()
+  //   recorder.current?.pauseRecording();
+  //   recorder.current = null;
+  //   setenableMic(false);
+  // };
+    const disconnect = async (e) => {
+  e.preventDefault();
+  if (realtimeTranscriber.current) {
+    await realtimeTranscriber.current.close();
+  }
+  recorder.current?.pauseRecording();
+  recorder.current = null;
+  setenableMic(false);
+};
 
 
 
