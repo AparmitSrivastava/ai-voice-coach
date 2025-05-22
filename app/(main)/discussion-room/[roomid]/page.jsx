@@ -24,6 +24,7 @@ const page = () => {
   const realtimeTranscriber = useRef(null)
   const [transcribe, settranscribe] = useState()
   const [conversation, setconversation] = useState([])
+  const [audioURL, setaudioURL] = useState()
   let texts = {}
 
 
@@ -130,23 +131,27 @@ const page = () => {
 
 
 
-  useEffect(() => {
-      async function fetchData() {
-        if(conversation[conversation.length-1].role=='user'){
-      // calling ai model to get response
-        const lastTwoMsg = conversation.slice(-2) 
-        const aiResp = await AIModel(
-          DiscussionRoomData.topic,
-          DiscussionRoomData.coachingOption,
-          lastTwoMsg
-        )
-
-        console.log(aiResp);
-        setconversation(prev=>[...prev,aiResp])
-      }
+ useEffect(() => {
+  async function fetchData() {
+    if (
+      conversation.length > 0 &&
+      conversation[conversation.length - 1].role === 'user'
+    ) {
+      const lastTwoMsg = conversation.slice(-8);
+      const aiResp = await AIModel(
+        DiscussionRoomData.topic,
+        DiscussionRoomData.coachingOption,
+        lastTwoMsg
+      );
+      const url = await ConvertTextToSpeech(aiResp.content , DiscussionRoomData.expertName)
+      console.log(url);
+      setaudioURL(url)
+      setconversation(prev => [...prev, aiResp]);
     }
-    fetchData()
-  }, [conversation])
+  }
+  fetchData();
+}, [conversation]);
+
 
   
 
@@ -195,6 +200,8 @@ const page = () => {
               />
             )}
             <h2 className="text-[20px] text-orange-700 font-semibold">{expert?.name}</h2>
+
+            <audio src={audioURL} type="audio/mp3" autoPlay/>
             <div className="p-5 px-10 rounded-lg bg-gray-200 absolute bottom-7 right-8">
               <UserButton />
             </div>
