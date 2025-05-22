@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { CoachingExpert } from "@/services/Options";
 import { api } from "@/convex/_generated/api";
 import Image from "next/image";
@@ -21,11 +21,14 @@ const page = () => {
   const recordRTCRef = useRef(null);
   const [loading, setloading] = useState(false)
   let silenceTimeout;
+  let waitForPause;
+  const UpdateConversion = useMutation(api.DiscussionRoom.UpdateConversation);
   const realtimeTranscriber = useRef(null)
   const [transcribe, settranscribe] = useState()
   const [conversation, setconversation] = useState([])
-  const [audioURL, setaudioURL] = useState()
+  const [audioUrl, setaudioUrl] = useState()
   let texts = {}
+  const [enableFeedbackNotes, setenableFeedbackNotes] = useState(false)
 
 
 
@@ -145,7 +148,7 @@ const page = () => {
       );
       const url = await ConvertTextToSpeech(aiResp.content , DiscussionRoomData.expertName)
       console.log(url);
-      setaudioURL(url)
+      setaudioUrl(url)
       setconversation(prev => [...prev, aiResp]);
     }
   }
@@ -174,7 +177,14 @@ const page = () => {
     recorder.current?.pauseRecording();
     recorder.current = null;
     setenableMic(false);
+
+    await UpdateConversion({      //calling the fnc
+      id:DiscussionRoomData._id,  
+      conversation:conversation,
+    })
+
     setloading(false)
+    setenableFeedbackNotes(true)
   };
 
 
@@ -201,7 +211,7 @@ const page = () => {
             )}
             <h2 className="text-[20px] text-orange-700 font-semibold">{expert?.name}</h2>
 
-            <audio src={audioURL} type="audio/mp3" autoPlay/>
+            <audio src={audioUrl} type="audio/mp3" autoPlay/>
             <div className="p-5 px-10 rounded-lg bg-gray-200 absolute bottom-7 right-8">
               <UserButton />
             </div>
@@ -215,7 +225,7 @@ const page = () => {
           </div>
         </div>
         <div>
-          <Chatbox conversation={conversation}/>
+          <Chatbox conversation={conversation} enableFeedbackNotes={enableFeedbackNotes}/>
         </div>
       </div>
 

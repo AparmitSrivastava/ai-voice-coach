@@ -29,9 +29,16 @@
 
 
 
+import { AIModelToGenerateFeedbackAndNotes } from '@/services/GlobalServices'
 import React from 'react'
 
-const Chatbox = ({ conversation }) => {
+const Chatbox = ({ conversation , enableFeedbackNotes }) => {
+
+  const GenerateFeedbackNotes = async() => {
+    await AIModelToGenerateFeedbackAndNotes()
+  }
+
+
   return (
     <div>
       <div className="h-[60vh] border rounded-xl bg-secondary flex flex-col relative p-4 overflow-auto">
@@ -53,9 +60,11 @@ const Chatbox = ({ conversation }) => {
         ))}
       </div>
 
-      <h2 className="mt-5 text-gray-400 text-sm">
-        At the end of the session we will automatically generate notes/feedback from your conversation
-      </h2>
+      { !enableFeedbackNotes ? 
+      <h2 className="mt-5 text-gray-400 text-sm"> At the end of the session we will automatically generate notes/feedback from your conversation </h2>
+      :
+      <Button onClick={GenerateFeedbackNotes} >Generate Feedback/Notes</Button>
+      }
     </div>
   )
 }
