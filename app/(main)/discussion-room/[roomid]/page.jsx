@@ -7,8 +7,10 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { UserButton } from "@stackframe/stack";
 import { Button } from "@/components/ui/button";
-import { getToken } from "@/services/GlobalServices";
+import { AIModel, getToken } from "@/services/GlobalServices";
 import { RealtimeTranscriber } from "assemblyai";
+import { Loader2Icon } from "lucide-react";
+import Chatbox from "./_components/Chatbox";
 
 const page = () => {
   const { roomid } = useParams();
@@ -17,8 +19,12 @@ const page = () => {
   const [enableMic, setenableMic] = useState(false);
   const recorder = useRef();
   const recordRTCRef = useRef(null);
+  const [loading, setloading] = useState(false)
   let silenceTimeout;
   const realtimeTranscriber = useRef(null)
+  const [transcribe, settranscribe] = useState()
+  const [conversation, setconversation] = useState([])
+  let texts = {}
 
 
 
@@ -41,21 +47,43 @@ const page = () => {
 
 
 
-  const ConnectToServer = async() => {
+  const ConnectToServer = async () => {
     setenableMic(true);
-
+    setloading(true)
     // init assembly ai
-    realtimeTranscriber.current=new RealtimeTranscriber({
-      token:await getToken(),     //we need to create a token each time and this token is created on the server side so making a new folder api , then inside it folder - getToken in the app directory
-      sample:16_000
+    realtimeTranscriber.current = new RealtimeTranscriber({
+      token: await getToken(),     //we need to create a token each time and this token is created on the server side so making a new folder api , then inside it folder - getToken in the app directory
+      sample: 16_000
     })
 
     // making the socket part
-    realtimeTranscriber.current.on('transcript' , async(transcript)=>{
+    realtimeTranscriber.current.on('transcript', async (transcript) => {
       console.log(transcript);
+
+      let msg = ''
+
+      if (transcript.message_type == 'FinalTranscript') {
+        setconversation(prev => [...prev, {
+          role: "user",
+          content: transcript.text
+        }]);
+      }
+
+      texts[transcript.audio_start] = transcript?.text
+      const keys = Object.keys(texts)
+      keys.sort((a, b) => a - b)
+
+      for (const key of keys) {
+        if (texts[key]) {
+          msg += `${texts[key]}`
+        }
+      }
+
+      settranscribe(msg)
     })
 
     await realtimeTranscriber.current.connect() //connect with the assemblyAi
+    setloading(false)
 
     // CODE TO GET MICROPHONE ACCESS
     if (typeof window !== "undefined" && typeof navigator !== "undefined") {
@@ -85,11 +113,11 @@ const page = () => {
 
               realtimeTranscriber.current.sendAudio(buffer), //sending the encoded audio to the socket part
 
-              // Restart the silence detection timer
-              silenceTimeout = setTimeout(() => {
-                console.log("User stopped talking");
-                // Handle user stopped talking (e.g., send final transcript, stop recording, etc.)
-              }, 2000);
+                // Restart the silence detection timer
+                silenceTimeout = setTimeout(() => {
+                  console.log("User stopped talking");
+                  // Handle user stopped talking (e.g., send final transcript, stop recording, etc.)
+                }, 2000);
             },
           });
 
@@ -99,6 +127,32 @@ const page = () => {
     }
   };
 
+
+
+
+  useEffect(() => {
+      async function fetchData() {
+        if(conversation[conversation.length-1].role=='user'){
+      // calling ai model to get response
+        const lastTwoMsg = conversation.slice(-2) 
+        const aiResp = await AIModel(
+          DiscussionRoomData.topic,
+          DiscussionRoomData.coachingOption,
+          lastTwoMsg
+        )
+
+        console.log(aiResp);
+        setconversation(prev=>[...prev,aiResp])
+      }
+    }
+    fetchData()
+  }, [conversation])
+
+  
+
+
+
+
   // const disconnect = async(e) => {
   //   e.preventDefault();
   //   await realtimeTranscriber.current.close()
@@ -106,15 +160,17 @@ const page = () => {
   //   recorder.current = null;
   //   setenableMic(false);
   // };
-    const disconnect = async (e) => {
-  e.preventDefault();
-  if (realtimeTranscriber.current) {
-    await realtimeTranscriber.current.close();
-  }
-  recorder.current?.pauseRecording();
-  recorder.current = null;
-  setenableMic(false);
-};
+  const disconnect = async (e) => {
+    e.preventDefault();
+    setloading(true)
+    if (realtimeTranscriber.current) {
+      await realtimeTranscriber.current.close();
+    }
+    recorder.current?.pauseRecording();
+    recorder.current = null;
+    setenableMic(false);
+    setloading(false)
+  };
 
 
 
@@ -145,21 +201,22 @@ const page = () => {
           </div>
           <div className="mt-5 flex justify-center items-center">
             {!enableMic ? (
-              <Button onClick={ConnectToServer}>Connect</Button>
+              <Button onClick={ConnectToServer} disabled={loading} > {loading && <Loader2Icon className="animate-spin" />}  Connect</Button>
             ) : (
-              <Button variant="destructive" onClick={disconnect}>Disconnect</Button>
+              <Button variant="destructive" onClick={disconnect} disabled={loading}>  {loading && <Loader2Icon className="animate-spin" />} Disconnect</Button>
             )}
           </div>
         </div>
         <div>
-          <div className="h-[60vh] border rounded-4xl bg-secondary flex flex-col items-center justify-center relative">
-            <h2>Chat Section</h2>
-          </div>
-          <h2 className="mt-5 text-gray-400 text-sm">
-            At the end of the session we will automatically generate notes/feedback from your conversation
-          </h2>
+          <Chatbox conversation={conversation}/>
         </div>
       </div>
+
+
+      <div>
+        <h2>{transcribe}</h2>
+      </div>
+
     </div>
   );
 };
