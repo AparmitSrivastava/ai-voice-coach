@@ -30,13 +30,39 @@
 
 
 import { AIModelToGenerateFeedbackAndNotes } from '@/services/GlobalServices'
-import React from 'react'
+import {React , useState} from 'react'
+import { Button } from '@/components/ui/button'
+import { LoaderCircle } from 'lucide-react'
+import { useMutation } from 'convex/react'
+import { api } from '@/convex/_generated/api'
+import { useParams } from 'next/navigation'
+import { UpdateSummary } from '@/convex/DiscussionRoom'
+import { toast } from 'sonner'
 
-const Chatbox = ({ conversation , enableFeedbackNotes }) => {
+const Chatbox = ({ conversation , enableFeedbackNotes , coachingOption }) => {
+  const [loading, setloading] = useState(false)
+  const updateSummary = useMutation(api.DiscussionRoom.UpdateSummary)
+  const { roomid } =useParams()
 
-  const GenerateFeedbackNotes = async() => {
-    await AIModelToGenerateFeedbackAndNotes()
+  const GenerateFeedbackNotes = async() =>  {
+    setloading(true)
+    
+    try{
+    const result = await AIModelToGenerateFeedbackAndNotes(coachingOption , conversation)
+    console.log(result.content);
+    
+    await updateSummary({
+      id:roomid,
+      summary:result.content,
+    })
+    setloading(false)
+    toast('Feedback/Notes saved!')
   }
+  catch(e){
+      setloading(false)
+       toast('Internal server error, try again!')
+  }
+}
 
 
   return (
@@ -63,7 +89,9 @@ const Chatbox = ({ conversation , enableFeedbackNotes }) => {
       { !enableFeedbackNotes ? 
       <h2 className="mt-5 text-gray-400 text-sm"> At the end of the session we will automatically generate notes/feedback from your conversation </h2>
       :
-      <Button onClick={GenerateFeedbackNotes} >Generate Feedback/Notes</Button>
+      <Button onClick={GenerateFeedbackNotes} disabled={loading} className='mt-5 w-full' >
+        {loading && <LoaderCircle className='animate-spin'/>}
+        Generate Feedback/Notes</Button>
       }
     </div>
   )

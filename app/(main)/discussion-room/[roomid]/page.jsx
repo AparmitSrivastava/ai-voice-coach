@@ -11,6 +11,7 @@ import { AIModel, getToken } from "@/services/GlobalServices";
 import { RealtimeTranscriber } from "assemblyai";
 import { Loader2Icon } from "lucide-react";
 import Chatbox from "./_components/Chatbox";
+import { toast } from "sonner";
 
 const page = () => {
   const { roomid } = useParams();
@@ -88,6 +89,8 @@ const page = () => {
 
     await realtimeTranscriber.current.connect() //connect with the assemblyAi
     setloading(false)
+    toast('Connected...')
+
 
     // CODE TO GET MICROPHONE ACCESS
     if (typeof window !== "undefined" && typeof navigator !== "undefined") {
@@ -177,6 +180,7 @@ const page = () => {
     recorder.current?.pauseRecording();
     recorder.current = null;
     setenableMic(false);
+    toast('Disconnected')
 
     await UpdateConversion({      //calling the fnc
       id:DiscussionRoomData._id,  
@@ -225,7 +229,9 @@ const page = () => {
           </div>
         </div>
         <div>
-          <Chatbox conversation={conversation} enableFeedbackNotes={enableFeedbackNotes}/>
+          <Chatbox conversation={conversation}
+          enableFeedbackNotes={enableFeedbackNotes}
+          coachingOption={DiscussionRoomData?.coachingOption} />
         </div>
       </div>
 

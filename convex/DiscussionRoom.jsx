@@ -43,3 +43,16 @@ export const UpdateConversation = mutation({
         })
     }
 })
+
+
+export const UpdateSummary = mutation({
+    args:{
+        id:v.id('DiscussionRoom'),
+        conversation:v.any()
+    },
+    handler:async(ctx,args)=>{
+        await ctx.db.patch(args.id , {
+            summary:args.summary
+        })
+    }
+})
