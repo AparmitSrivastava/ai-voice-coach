@@ -34,6 +34,20 @@ import {v} from "convex/values"
 //  after this file we work on authprovider.jsx where stroing of user info is done
 
 
+
+export const UpdateUserToken = mutation({
+    args:{
+        id:v.id('users'),
+        credits:v.number(),
+    },
+    handler:async(ctx,args)=>{
+        await ctx.db.patch(args.id,{
+            credits:args.credits,
+        })
+    }
+})
+
+
        
 //ctx.db gives you access to Convex's database functions.
 // query() is a Convex method used to read from a table (collection).

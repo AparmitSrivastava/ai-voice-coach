@@ -87,7 +87,7 @@ const Chatbox = ({ conversation , enableFeedbackNotes , coachingOption }) => {
       </div>
 
       { !enableFeedbackNotes ? 
-      <h2 className="mt-5 text-gray-400 text-sm"> At the end of the session we will automatically generate notes/feedback from your conversation </h2>
+      <h2 className="mt-5 text-gray-400 text-sm"></h2>
       :
       <Button onClick={GenerateFeedbackNotes} disabled={loading} className='mt-5 w-full' >
         {loading && <LoaderCircle className='animate-spin'/>}

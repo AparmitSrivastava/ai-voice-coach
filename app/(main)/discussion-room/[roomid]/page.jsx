@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { CoachingExpert } from "@/services/Options";
@@ -12,12 +12,14 @@ import { RealtimeTranscriber } from "assemblyai";
 import { Loader2Icon } from "lucide-react";
 import Chatbox from "./_components/Chatbox";
 import { toast } from "sonner";
+import { UserContext } from "@/app/_context/UserContext";
 
 const page = () => {
   const { roomid } = useParams();
   const DiscussionRoomData = useQuery(api.DiscussionRoom.GetDiscussionRoom, { id: roomid });
   const [expert, setexpert] = useState();
   const [enableMic, setenableMic] = useState(false);
+  const { userData, setuserData } = useContext(UserContext)
   const recorder = useRef();
   const recordRTCRef = useRef(null);
   const [loading, setloading] = useState(false)
@@ -30,6 +32,7 @@ const page = () => {
   const [audioUrl, setaudioUrl] = useState()
   let texts = {}
   const [enableFeedbackNotes, setenableFeedbackNotes] = useState(false)
+  const updateUserToken = useMutation(api.users.UpdateUserToken)
 
 
 
@@ -64,7 +67,6 @@ const page = () => {
     // making the socket part
     realtimeTranscriber.current.on('transcript', async (transcript) => {
       console.log(transcript);
-
       let msg = ''
 
       if (transcript.message_type == 'FinalTranscript') {
@@ -72,6 +74,7 @@ const page = () => {
           role: "user",
           content: transcript.text
         }]);
+        await updateUserTokenMethod(transcript.text)      //update user genrated token
       }
 
       texts[transcript.audio_start] = transcript?.text
@@ -137,29 +140,36 @@ const page = () => {
 
 
 
- useEffect(() => {
-  async function fetchData() {
-    if (
-      conversation.length > 0 &&
-      conversation[conversation.length - 1].role === 'user'
-    ) {
-      const lastTwoMsg = conversation.slice(-8);
-      const aiResp = await AIModel(
-        DiscussionRoomData.topic,
-        DiscussionRoomData.coachingOption,
-        lastTwoMsg
-      );
-      const url = await ConvertTextToSpeech(aiResp.content , DiscussionRoomData.expertName)
-      console.log(url);
-      setaudioUrl(url)
-      setconversation(prev => [...prev, aiResp]);
+  useEffect(() => {
+    clearTimeout(waitForPause)
+    async function fetchData() {
+      if (
+        conversation.length > 0 &&
+        conversation[conversation.length - 1].role === 'user'
+      ) {
+        const lastTwoMsg = conversation.slice(-8);
+        const aiResp = await AIModel(
+          DiscussionRoomData.topic,
+          DiscussionRoomData.coachingOption,
+          lastTwoMsg
+        );
+        const url = await ConvertTextToSpeech(aiResp.content, DiscussionRoomData.expertName)
+        console.log(url);
+        setaudioUrl(url)
+        setconversation(prev => [...prev, aiResp]);
+        await updateUserTokenMethod(aiResp.content)   //update ai genrated token
+      }
     }
-  }
-  fetchData();
-}, [conversation]);
+
+    waitForPause = setTimeout(() => {
+      console.log("wait..");
+      fetchData();
+    }, 500)
+    console.log(conversation);
+  }, [conversation]);
 
 
-  
+
 
 
 
@@ -183,14 +193,27 @@ const page = () => {
     toast('Disconnected')
 
     await UpdateConversion({      //calling the fnc
-      id:DiscussionRoomData._id,  
-      conversation:conversation,
+      id: DiscussionRoomData._id,
+      conversation: conversation,
     })
-
     setloading(false)
     setenableFeedbackNotes(true)
   };
 
+  
+
+  const updateUserTokenMethod = async (text) => {
+    const tokenCount = text.trim()? text.trim().spilt(/\+/).length:0 
+    const result = await updateUserToken({
+      id: userData._id,
+      credits: Number(userData.credits)- Number(tokenCount),
+    })
+
+    setuserData(prev=>({
+      ...prev,
+        credits: Number(userData.credits)- Number(tokenCount),
+    }))
+  }
 
 
 
@@ -215,7 +238,7 @@ const page = () => {
             )}
             <h2 className="text-[20px] text-orange-700 font-semibold">{expert?.name}</h2>
 
-            <audio src={audioUrl} type="audio/mp3" autoPlay/>
+            <audio src={audioUrl} type="audio/mp3" autoPlay />
             <div className="p-5 px-10 rounded-lg bg-gray-200 absolute bottom-7 right-8">
               <UserButton />
             </div>
@@ -230,8 +253,8 @@ const page = () => {
         </div>
         <div>
           <Chatbox conversation={conversation}
-          enableFeedbackNotes={enableFeedbackNotes}
-          coachingOption={DiscussionRoomData?.coachingOption} />
+            enableFeedbackNotes={enableFeedbackNotes}
+            coachingOption={DiscussionRoomData?.coachingOption} />
         </div>
       </div>
 
