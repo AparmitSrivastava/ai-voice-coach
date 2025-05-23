@@ -58,3 +58,17 @@ export const UpdateSummary = mutation({
         })
     }
 })
+
+
+export const GetAllDiscussionRoom=query({
+    args:{
+        uid:v.id('users')
+    },
+    handler:async(ctx,args)=>{
+        const result=await ctx.db.query('DiscussionRoom')
+        .filter(q=>q.eq(q.field('uid') , args.uid))
+        .order('desc')
+        .collect()
+        return result
+    }
+})
