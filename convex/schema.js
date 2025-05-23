@@ -15,7 +15,8 @@ export default defineSchema({       // this is line is syntax -A function that r
         topic:v.string(),
         expertName:v.string(),
         conversation:v.optional(v.any()),
-        summary:v.optional(v.any())
+        summary:v.optional(v.any()),
+        uid:v.optional(v.id('users'))
     })
 })
 

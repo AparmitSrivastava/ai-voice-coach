@@ -1,4 +1,4 @@
-import React , {useState} from 'react'
+import React , {useContext, useState} from 'react'
 import {
     Dialog,
     DialogContent,
@@ -16,6 +16,7 @@ import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { LoaderCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { UserContext } from '@/app/_context/UserContext'
 
 
 
@@ -27,13 +28,15 @@ const UserInputDialog = ({ children, coachingOption }) => {
     const [loading, setloading] = useState(false)
     const [showDialog, setshowDialog] = useState(false) // for closing the dialog after next button is clicked
     const router = useRouter()
+    const {userData} = useContext(UserContext);
     
     const OnClickNext=async()=>{
         setloading(true)
         const result = await  createDiscussionRoom ({
             topic:topic,
             coachingOption:coachingOption?.name,
-            expertName:selectedExpert    
+            expertName:selectedExpert,
+            uid:userData?._id,
         })
         console.log(result)
         setloading(false)

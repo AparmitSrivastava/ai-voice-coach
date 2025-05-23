@@ -7,6 +7,7 @@ export const CreateNewRoom=mutation({
             coachingOption:v.string(),
             topic:v.string(),
             expertName:v.string(),
+            uid:v.id('users')
         },
         
         handler:async(ctx,args)=>{
@@ -14,6 +15,7 @@ export const CreateNewRoom=mutation({
                 coachingOption:args.coachingOption,
                 topic:args.topic,
                 expertName:args.expertName,
+                uid:args.uid
             });
 
             return result //gives the id
