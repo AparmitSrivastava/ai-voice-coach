@@ -7,12 +7,12 @@ import { api } from "@/convex/_generated/api";
 import Image from "next/image";
 import { UserButton } from "@stackframe/stack";
 import { Button } from "@/components/ui/button";
-import { AIModel, getToken } from "@/services/GlobalServices";
-import { RealtimeTranscriber } from "assemblyai";
+import { AIModel, ConvertTextToSpeech } from "@/services/GlobalServices";
 import { Loader2Icon } from "lucide-react";
 import Chatbox from "./_components/Chatbox";
 import { toast } from "sonner";
 import { UserContext } from "@/app/_context/UserContext";
+import { calculateTokenCount } from "@/utils/tokenUtils";
 
 const page = () => {
   const { roomid } = useParams();
@@ -20,30 +20,19 @@ const page = () => {
   const [expert, setexpert] = useState();
   const [enableMic, setenableMic] = useState(false);
   const { userData, setuserData } = useContext(UserContext)
-  const recorder = useRef();
-  const recordRTCRef = useRef(null);
   const [loading, setloading] = useState(false)
-  let silenceTimeout;
-  let waitForPause;
   const UpdateConversion = useMutation(api.DiscussionRoom.UpdateConversation);
-  const realtimeTranscriber = useRef(null)
-  const [transcribe, settranscribe] = useState()
+  const recognitionRef = useRef(null)
+  const [transcribe, settranscribe] = useState('')
   const [conversation, setconversation] = useState([])
-  const [audioUrl, setaudioUrl] = useState()
-  let texts = {}
   const [enableFeedbackNotes, setenableFeedbackNotes] = useState(false)
   const updateUserToken = useMutation(api.users.UpdateUserToken)
+  const [isUserSpeaking, setIsUserSpeaking] = useState(false)
+  const [isAISpeaking, setIsAISpeaking] = useState(false)
+  const speechTimeoutRef = useRef(null)
 
 
 
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      import("recordrtc").then((mod) => {
-        recordRTCRef.current = mod.default;
-      });
-    }
-  }, []);
 
   useEffect(() => {
     if (DiscussionRoomData) {
@@ -52,121 +41,226 @@ const page = () => {
     }
   }, [DiscussionRoomData]);
 
+  // Load voices when component mounts for TTS
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        window.speechSynthesis.getVoices()
+      }
+      loadVoices()
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices
+      }
+    }
+  }, [])
+
 
 
 
   const ConnectToServer = async () => {
+    if (typeof window === 'undefined' || (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window))) {
+      toast.error('Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.')
+      return
+    }
+
+    // Check if we're on HTTPS or localhost (required for microphone access)
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      toast.error('Microphone access requires HTTPS. Please use a secure connection.')
+      return
+    }
+
     setenableMic(true);
     setloading(true)
-    // init assembly ai
-    realtimeTranscriber.current = new RealtimeTranscriber({
-      token: await getToken(),     //we need to create a token each time and this token is created on the server side so making a new folder api , then inside it folder - getToken in the app directory
-      sample: 16_000
-    })
 
-    // making the socket part
-    realtimeTranscriber.current.on('transcript', async (transcript) => {
-      console.log(transcript);
-      let msg = ''
-
-      if (transcript.message_type == 'FinalTranscript') {
-        setconversation(prev => [...prev, {
-          role: "user",
-          content: transcript.text
-        }]);
-        await updateUserTokenMethod(transcript.text)      //update user genrated token
+    try {
+      // Request microphone permission first
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        // Stop the stream immediately - we just needed permission
+        stream.getTracks().forEach(track => track.stop())
+      } catch (permError) {
+        console.error('Microphone permission denied:', permError)
+        setloading(false)
+        setenableMic(false)
+        if (permError.name === 'NotAllowedError' || permError.name === 'PermissionDeniedError') {
+          toast.error('Microphone permission denied. Please allow microphone access in your browser settings and try again.')
+        } else if (permError.name === 'NotFoundError') {
+          toast.error('No microphone found. Please connect a microphone and try again.')
+        } else {
+          toast.error('Failed to access microphone. Please check your browser settings.')
+        }
+        return
       }
 
-      texts[transcript.audio_start] = transcript?.text
-      const keys = Object.keys(texts)
-      keys.sort((a, b) => a - b)
+      // Initialize Web Speech API
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
 
-      for (const key of keys) {
-        if (texts[key]) {
-          msg += `${texts[key]}`
+      let finalTranscript = ''
+
+      recognition.onresult = (event) => {
+        // User is speaking - show animation
+        setIsUserSpeaking(true)
+        
+        // Clear any existing timeout
+        if (speechTimeoutRef.current) {
+          clearTimeout(speechTimeoutRef.current)
+        }
+
+        let interimTranscript = ''
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript + ' '
+          } else {
+            interimTranscript += transcript
+          }
+        }
+
+        // Update UI with interim results
+        settranscribe(finalTranscript + interimTranscript)
+
+        // Process final transcripts
+        if (finalTranscript.trim()) {
+          const userMessage = finalTranscript.trim()
+          setconversation(prev => [...prev, {
+            role: "user",
+            content: userMessage
+          }]);
+          updateUserTokenMethod(userMessage)
+          finalTranscript = '' // Reset for next final transcript
+        }
+
+        // Set timeout to detect when user stops speaking (3 seconds of silence)
+        speechTimeoutRef.current = setTimeout(() => {
+          setIsUserSpeaking(false)
+          // After 3 seconds of silence, trigger AI response
+          triggerAIResponse()
+        }, 3000)
+      }
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error)
+        
+        if (event.error === 'no-speech') {
+          // User stopped speaking - wait 3 seconds then trigger AI response
+          setIsUserSpeaking(false)
+          if (speechTimeoutRef.current) {
+            clearTimeout(speechTimeoutRef.current)
+          }
+          speechTimeoutRef.current = setTimeout(() => {
+            triggerAIResponse()
+          }, 3000)
+          return
+        }
+        
+        if (event.error === 'not-allowed') {
+          setloading(false)
+          setenableMic(false)
+          toast.error('Microphone permission denied. Please allow microphone access in your browser settings and refresh the page.')
+          return
+        }
+        
+        if (event.error === 'no-microphone') {
+          setloading(false)
+          setenableMic(false)
+          toast.error('No microphone found. Please connect a microphone and try again.')
+          return
+        }
+        
+        if (event.error === 'aborted') {
+          // User manually stopped, this is normal
+          return
+        }
+        
+        // For other errors, show a generic message
+        toast.error(`Speech recognition error: ${event.error}. Please try again.`)
+      }
+
+      recognition.onend = () => {
+        // Restart recognition if still enabled
+        if (enableMic && recognitionRef.current) {
+          try {
+            recognition.start()
+          } catch (e) {
+            // Recognition already started or ended
+            console.log('Recognition restart skipped:', e.message)
+          }
         }
       }
 
-      settranscribe(msg)
-    })
-
-    await realtimeTranscriber.current.connect() //connect with the assemblyAi
-    setloading(false)
-    toast('Connected...')
-
-
-    // CODE TO GET MICROPHONE ACCESS
-    if (typeof window !== "undefined" && typeof navigator !== "undefined") {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream) => {
-          if (!recordRTCRef.current) {
-            console.error("RecordRTC not loaded yet.");
-            return;
-          }
-
-          recorder.current = new recordRTCRef.current(stream, {
-            type: "audio",
-            mimeType: "audio/webm;codecs=pcm",
-            recorderType: recordRTCRef.current.StereoAudioRecorder,
-            timeSlice: 250,
-            desiredSampRate: 16000,
-            numberOfAudioChannels: 1,
-            bufferSize: 4096,
-            audioBitsPerSecond: 128000,
-            ondataavailable: async (blob) => {
-              if (!realtimeTranscriber.current) return;
-              // Reset the silence detection timer on audio input
-              clearTimeout(silenceTimeout);
-
-              const buffer = await blob.arrayBuffer();
-              console.log(buffer)
-
-              realtimeTranscriber.current.sendAudio(buffer), //sending the encoded audio to the socket part
-
-                // Restart the silence detection timer
-                silenceTimeout = setTimeout(() => {
-                  console.log("User stopped talking");
-                  // Handle user stopped talking (e.g., send final transcript, stop recording, etc.)
-                }, 2000);
-            },
-          });
-
-          recorder.current.startRecording();
-        })
-        .catch((err) => console.error(err));
+      recognitionRef.current = recognition
+      recognition.start()
+      
+      setloading(false)
+      toast.success('Connected...')
+    } catch (error) {
+      console.error('Failed to start speech recognition:', error)
+      toast.error('Failed to start speech recognition. Please try again.')
+      setloading(false)
+      setenableMic(false)
     }
   };
 
 
 
 
-  useEffect(() => {
-    clearTimeout(waitForPause)
-    async function fetchData() {
-      if (
-        conversation.length > 0 &&
-        conversation[conversation.length - 1].role === 'user'
-      ) {
-        const lastTwoMsg = conversation.slice(-8);
-        const aiResp = await AIModel(
-          DiscussionRoomData.topic,
-          DiscussionRoomData.coachingOption,
-          lastTwoMsg
-        );
-        const url = await ConvertTextToSpeech(aiResp.content, DiscussionRoomData.expertName)
-        console.log(url);
-        setaudioUrl(url)
-        setconversation(prev => [...prev, aiResp]);
-        await updateUserTokenMethod(aiResp.content)   //update ai genrated token
+  // Function to trigger AI response after user stops speaking
+  const triggerAIResponse = async () => {
+    // Only trigger if there's a user message and we're not already processing
+    if (conversation.length > 0 && conversation[conversation.length - 1].role === 'user') {
+      // Check if we've already processed this message
+      const lastMessage = conversation[conversation.length - 1]
+      const hasResponse = conversation.some((msg, index) => 
+        index > conversation.indexOf(lastMessage) && msg.role === 'assistant'
+      )
+      
+      if (!hasResponse) {
+        try {
+          setIsAISpeaking(true)
+          const lastTwoMsg = conversation.slice(-8);
+          const aiResp = await AIModel(
+            DiscussionRoomData.topic,
+            DiscussionRoomData.coachingOption,
+            lastTwoMsg
+          );
+          
+          setconversation(prev => [...prev, aiResp]);
+          await updateUserTokenMethod(aiResp.content)
+          
+          try {
+            // Use Web Speech API for TTS (plays automatically)
+            await ConvertTextToSpeech(
+              aiResp.content, 
+              DiscussionRoomData.expertName,
+              () => setIsAISpeaking(true), // onStart
+              () => setIsAISpeaking(false) // onEnd
+            )
+          } catch (error) {
+            console.error('Failed to create audio from AI response', error)
+            toast.error('Unable to generate audio right now. Please try again.')
+            setIsAISpeaking(false)
+          }
+        } catch (error) {
+          console.error('Failed to get AI response:', error)
+          const errorMessage = error?.message || 'Failed to get AI response. Please try again.'
+          toast.error(errorMessage)
+          setIsAISpeaking(false)
+          
+          // Add a fallback message to the conversation
+          setconversation(prev => [...prev, {
+            role: "assistant",
+            content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment."
+          }]);
+        }
       }
     }
-
-    waitForPause = setTimeout(() => {
-      console.log("wait..");
-      fetchData();
-    }, 500)
-    console.log(conversation);
-  }, [conversation]);
+  }
 
 
 
@@ -174,23 +268,32 @@ const page = () => {
 
 
 
-  // const disconnect = async(e) => {
-  //   e.preventDefault();
-  //   await realtimeTranscriber.current.close()
-  //   recorder.current?.pauseRecording();
-  //   recorder.current = null;
-  //   setenableMic(false);
-  // };
+
   const disconnect = async (e) => {
     e.preventDefault();
     setloading(true)
-    if (realtimeTranscriber.current) {
-      await realtimeTranscriber.current.close();
+    
+    // Clear any pending timeouts
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current)
+      speechTimeoutRef.current = null
     }
-    recorder.current?.pauseRecording();
-    recorder.current = null;
+    
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      recognitionRef.current.stop()
+      recognitionRef.current = null
+    }
+
+    // Stop any ongoing speech
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+    }
+
+    setIsUserSpeaking(false)
+    setIsAISpeaking(false)
     setenableMic(false);
-    toast('Disconnected')
+    toast.success('Disconnected')
 
     await UpdateConversion({      //calling the fnc
       id: DiscussionRoomData._id,
@@ -203,16 +306,37 @@ const page = () => {
   
 
   const updateUserTokenMethod = async (text) => {
-    const tokenCount = text.trim()? text.trim().spilt(/\+/).length:0 
-    const result = await updateUserToken({
-      id: userData._id,
-      credits: Number(userData.credits)- Number(tokenCount),
-    })
+    if (!userData?._id) {
+      return
+    }
 
-    setuserData(prev=>({
-      ...prev,
-        credits: Number(userData.credits)- Number(tokenCount),
-    }))
+    const tokenCount = calculateTokenCount(text)
+    if (tokenCount === 0) {
+      return
+    }
+
+    const currentCredits = Number(userData?.credits ?? 0)
+    const updatedCredits = Math.max(currentCredits - tokenCount, 0)
+
+    try {
+      await updateUserToken({
+        id: userData._id,
+        credits: updatedCredits,
+      })
+
+      setuserData((prev) => {
+        if (!prev) {
+          return prev
+        }
+        return {
+          ...prev,
+          credits: updatedCredits,
+        }
+      })
+    } catch (error) {
+      console.error('Failed to update user credits', error)
+      toast('Unable to update credits right now. Please try again later.')
+    }
   }
 
 
@@ -233,12 +357,41 @@ const page = () => {
                 alt="avatar"
                 width={200}
                 height={200}
-                className="h-[80px] w-[80px] rounded-full object-cover animate-pulse"
+                className={`h-[80px] w-[80px] rounded-full object-cover ${
+                  isUserSpeaking 
+                    ? 'animate-pulse ring-4 ring-blue-500 ring-opacity-75' 
+                    : isAISpeaking 
+                    ? 'animate-pulse ring-4 ring-green-500 ring-opacity-75'
+                    : 'animate-pulse'
+                }`}
               />
             )}
             <h2 className="text-[20px] text-orange-700 font-semibold">{expert?.name}</h2>
+            
+            {/* Speaking indicators */}
+            {isUserSpeaking && (
+              <div className="mt-4 flex items-center gap-2 text-blue-600">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="text-sm font-medium">You're speaking...</span>
+              </div>
+            )}
+            
+            {isAISpeaking && (
+              <div className="mt-4 flex items-center gap-2 text-green-600">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
+                <span className="text-sm font-medium">{expert?.name} is speaking...</span>
+              </div>
+            )}
 
-            <audio src={audioUrl} type="audio/mp3" autoPlay />
+            {/* Web Speech API handles audio playback automatically */}
             <div className="p-5 px-10 rounded-lg bg-gray-200 absolute bottom-7 right-8">
               <UserButton />
             </div>

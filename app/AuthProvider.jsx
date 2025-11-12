@@ -1,6 +1,6 @@
 import { useUser } from '@stackframe/stack'
 import { useMutation } from 'convex/react'
-import React, { useContext, useEffect ,useState } from 'react' 
+import React, { useContext, useEffect, useState, useCallback } from 'react' 
 import {api} from "@/convex/_generated/api"
 import { UserContext } from './_context/UserContext'
 
@@ -9,19 +9,35 @@ const AuthProvider = ({children}) => {
     const CreateUser = useMutation(api.users.CreateUser);
     const [userData, setuserData] = useState()
 
+    const CreateNewUser = useCallback(async () => {
+        // Provide fallback values if displayName or primaryEmail are null/undefined
+        const userName = user?.displayName || user?.name || 'User'
+        const userEmail = user?.primaryEmail || user?.email || ''
+        
+        // Only create user if we have a valid email
+        if (!userEmail) {
+            console.warn('Cannot create user: email is missing')
+            return
+        }
+        
+        try {
+            const result = await CreateUser({
+                name: userName,
+                email: userEmail
+            })
+            console.log(result);
+            setuserData(result)
+        } catch (error) {
+            console.error('Failed to create user:', error)
+        }
+    }, [user, CreateUser])
+
     useEffect(() => {
       // console.log(user);     
-      user&&CreateNewUser();      // call the createtnewuser func only when user i.e. userdata is availabel
-    }, [user])
-
-    const CreateNewUser=async()=>{
-        const result = await CreateUser({
-            name:user?.displayName,
-            email:user.primaryEmail   //both these are taken displayName,primaryEmail are takn from the console log 
-        })
-        console.log(result);
-        setuserData(result)
-    }
+      if (user && !userData) {
+          CreateNewUser();      // call the createtnewuser func only when user i.e. userdata is availabel
+      }
+    }, [user, userData, CreateNewUser])
     
   return (
     <div>
