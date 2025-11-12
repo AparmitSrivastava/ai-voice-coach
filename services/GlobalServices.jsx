@@ -146,3 +146,32 @@ export const ConvertTextToSpeech = async (text, voiceId, onStart, onEnd) => {
     window.speechSynthesis.speak(utterance)
   })
 }
+
+
+
+// const ConvertTextToSpeech = async(text)=>{
+//   const pollyClient = new PollyClient({
+//     region:'us-east-1',
+//     credentials:{
+//       accessKeyId:process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
+//       secretAccessKey:process.env.NEXT_PUBLIC_AWS_SECRET_KEY,
+//     }
+//   })
+
+//   const command = new SynthesizeSpeechCommand({
+//     Text:text,
+//     OutputFormat:'mp3',
+//     VoiceId:expertName
+//   })
+
+//   try{
+//     const {AudioStream} = await pollyClient.send(command);
+//     const audioArrayBuffer = await AudioStream.transformToByteArray();
+//     const audioBlob = new Blob([audioArrayBuffer] , {type:'audio/mp3'})
+//     const audioUrl = URL.createObjectURL(audioBlob)
+//     return audioUrl;
+//   }catch(e){
+// console.log(e);
+
+//   }
+// }
