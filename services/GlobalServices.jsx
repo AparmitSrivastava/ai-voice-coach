@@ -98,54 +98,67 @@ export const AIModelToGenerateFeedbackAndNotes = async(coachingOption , conversa
 }
 
 
-export const ConvertTextToSpeech = async (text, voiceId, onStart, onEnd) => {
-  return new Promise((resolve, reject) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      reject(new Error('Speech synthesis is not supported in this browser'))
-      return
-    }
-
-    // Cancel any ongoing speech
-    window.speechSynthesis.cancel()
-
-    const utterance = new SpeechSynthesisUtterance(text)
+export const ConvertTextToSpeech = async (text, onStart, onEnd) => {
+  try {
+    console.log("[TTS Frontend] Requesting TTS for text:", text.substring(0, 50) + "...");
     
-    // Try to find a voice matching the voiceId (e.g., "Joanna", "Salli", "Joey")
-    const voices = window.speechSynthesis.getVoices()
-    const preferredVoice = voices.find(voice => 
-      voice.name.toLowerCase().includes(voiceId?.toLowerCase() || '') ||
-      voice.lang.includes('en')
-    )
+    const res = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+
+    console.log("[TTS Frontend] Response status:", res.status, res.statusText);
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      console.error("[TTS Frontend] TTS API error:", {
+        status: res.status,
+        statusText: res.statusText,
+        error: errorData
+      });
+      
+      if (onEnd) onEnd();
+      throw new Error(errorData.message || `TTS API error: ${res.status} ${res.statusText}`);
+    }
+
+    const data = await res.json();
+    console.log("[TTS Frontend] Response data keys:", Object.keys(data));
+
+    if (!data.audioContent) {
+      console.error("[TTS Frontend] TTS response missing audio:", data);
+      if (onEnd) onEnd();
+      throw new Error("No audio content in TTS response: " + JSON.stringify(data));
+    }
     
-    if (preferredVoice) {
-      utterance.voice = preferredVoice
-    } else if (voices.length > 0) {
-      // Fallback to first available English voice
-      const englishVoice = voices.find(v => v.lang.startsWith('en')) || voices[0]
-      utterance.voice = englishVoice
-    }
+    console.log("[TTS Frontend] Audio content received, length:", data.audioContent.length);
 
-    utterance.rate = 1.0
-    utterance.pitch = 1.0
-    utterance.volume = 1.0
+    // Create audio element from base64 data
+    const audio = new Audio(`data:audio/mp3;base64,${data.audioContent}`);
+    
+    // Set up event handlers
+    audio.onplay = () => {
+      if (onStart) onStart();
+    };
 
-    utterance.onstart = () => {
-      if (onStart) onStart()
-    }
+    audio.onended = () => {
+      if (onEnd) onEnd();
+    };
 
-    utterance.onend = () => {
-      if (onEnd) onEnd()
-      resolve('completed')
-    }
+    audio.onerror = (error) => {
+      console.error("Audio playback error:", error);
+      if (onEnd) onEnd();
+    };
 
-    utterance.onerror = (error) => {
-      if (onEnd) onEnd()
-      reject(new Error(`Speech synthesis error: ${error.error}`))
-    }
+    // Play the audio
+    await audio.play();
 
-    window.speechSynthesis.speak(utterance)
-  })
-}
+  } catch (err) {
+    console.error("TTS request failed:", err);
+    if (onEnd) onEnd();
+    throw err;
+  }
+};
 
 
 

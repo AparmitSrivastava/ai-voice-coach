@@ -25,7 +25,7 @@ const AuthProvider = ({children}) => {
                 name: userName,
                 email: userEmail
             })
-            console.log(result);
+            // console.log(result); // Removed console.log to reduce noise
             setuserData(result)
         } catch (error) {
             console.error('Failed to create user:', error)
