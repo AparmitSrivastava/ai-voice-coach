@@ -1,5 +1,3 @@
-Here’s a well-polished, developer-friendly **README.md** designed for your **AI Voice Coach** — a mock-interview web application with voice interaction. It aligns with professional open-source and portfolio standards.  
-
 ***
 
 ## AI Voice Coach 🎙️
@@ -19,3 +17,90 @@ Here’s a well-polished, developer-friendly **README.md** designed for your **A
 
 ***
 
+
+### 🧠 Tech Stack
+
+| Component | Technology |
+|------------|-------------|
+| **Framework** | Next.js 15 (App Router) |
+| **Frontend** | React 18, TailwindCSS |
+| **Backend** | Convex (real-time serverless functions) |
+| **Speech Recognition** | AssemblyAI |
+| **Speech Synthesis** | AWS Polly |
+| **AI Model** | OpenAI API |
+| **UI Components** | Radix UI, Lucide React Icons |
+| **Animation** | Motion |
+| **Notifications** | Sonner |
+
+***
+
+### 📦 Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/ai-voice-coach.git
+   cd ai-voice-coach
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set environment variables**  
+   Create a `.env.local` file in the root directory and include:
+   ```bash
+   OPENAI_API_KEY=your_openai_key
+   ASSEMBLYAI_API_KEY=your_assemblyai_key
+   AWS_ACCESS_KEY_ID=your_aws_key
+   AWS_SECRET_ACCESS_KEY=your_aws_secret
+   AWS_REGION=your_aws_region
+   CONVEX_DEPLOYMENT=your_convex_deployment_url
+   ```
+
+4. **Run development server**
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+***
+
+### 🧩 Folder Structure
+
+```
+ai-voice-coach/
+│
+├── app/                 # Next.js app router pages
+├── components/          # Reusable UI components
+├── lib/                 # Utility and service functions
+├── public/              # Static assets
+├── styles/              # Tailwind and global styles
+├── convex/              # Convex backend logic
+├── package.json
+└── README.md
+```
+
+***
+
+### 🗣️ How It Works
+
+1. The user begins a mock interview session.  
+2. The app sends audio input to **AssemblyAI** for transcription.  
+3. The transcribed text is processed by **OpenAI** to generate interview responses.  
+4. Responses are converted to speech using **AWS Polly** for a lifelike voice reply.  
+5. Performance insights are displayed at the end of the session.
+
+***
+
+### 🧰 Scripts
+
+| Command | Description |
+|----------|--------------|
+| `npm run dev` | Run development server |
+| `npm run build` | Build the production app |
+| `npm start` | Run the production build |
+| `npm run lint` | Lint and fix code issues |
+
+***
